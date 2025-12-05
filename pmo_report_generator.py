@@ -10,6 +10,9 @@ import requests
 import json
 from datetime import datetime, timedelta
 from base64 import b64encode
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Configurações da API Jira
 JIRA_EMAIL = os.environ.get('JIRA_EMAIL')
@@ -19,6 +22,11 @@ JIRA_URL = f'https://{JIRA_DOMAIN}/rest/api/3'
 
 # Slack Webhook
 SLACK_WEBHOOK_URL = os.environ.get('SLACK_WEBHOOK_URL')
+
+# Email Configuration
+EMAIL_SENDER = os.environ.get('EMAIL_SENDER')
+EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD')
+EMAIL_RECIPIENTS = os.environ.get('EMAIL_RECIPIENTS', '').split(',')
 
 def get_date_range(mode='daily'):
     """Retorna o range de datas baseado no modo"""
@@ -161,6 +169,45 @@ def send_to_slack(message):
         print(f'Erro ao enviar mensagem para o Slack: {e}')
         return False
 
+def send_email(issues, title, start_date, end_date):
+        """Envia relatório por email"""
+        if not EMAIL_SENDER or not EMAIL_PASSWORD or not EMAIL_RECIPIENTS:
+                    print('Email não configurado. Pulando envio.')
+                    return False
+
+    try:
+                # Criar mensagem de email em HTML
+                msg = MIMEMultipart('alternative')
+                msg['Subject'] = title
+                msg['From'] = EMAIL_SENDER
+                msg['To'] = ', '.join([r.strip() for r in EMAIL_RECIPIENTS if r.strip()])
+
+        # Construir corpo do email em HTML
+        html_body = f"""
+                <html>
+                            <body style='font-family: Arial, sans-serif;'>
+                                            <h2>{title}</h2>
+                                                            <p><strong>Período:</strong> {start_date} até {end_date}</p>
+                                                                            <p><strong>Total de issues:</strong> {len(issues)}</p>
+                                                                                        </body>
+                                                                                                </html>
+                                                                                                        """
+
+        # Anexar corpo HTML
+        part = MIMEText(html_body, 'html')
+        msg.attach(part)
+
+        # Conectar ao servidor SMTP e enviar
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+                        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+                        server.sendmail(EMAIL_SENDER, [r.strip() for r in EMAIL_RECIPIENTS if r.strip()], msg.as_string())
+                    print(f'Email enviado com sucesso para {len([r.strip() for r in EMAIL_RECIPIENTS if r.strip()])} destinatário(s)')
+        return True
+
+    except Exception as e:
+        print(f'Erro ao enviar email: {e}')
+        return False
+
 def main():
     """Função principal"""
     
@@ -191,6 +238,7 @@ def main():
     # Formata e envia mensagem
     message = format_slack_message(issues, title, start_date, end_date)
     send_to_slack(message)
+        send_email(issues, title, start_date, end_date)
 
 if __name__ == '__main__':
     main()
