@@ -49,4 +49,4 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          python pmo_report_generator.py --mode ${{ steps.mode.outputs.mode }}
+          python pmo_report_generator.py
