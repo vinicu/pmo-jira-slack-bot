@@ -1,0 +1,52 @@
+name: PMO Daily & Weekly Reports
+
+on:
+  schedule:
+    # Segunda às 10h BRT (UTC-3) -> 13h UTC
+    - cron: '0 13 * * 1'
+    # Todo dia às 09:30 BRT -> 12:30 UTC
+    - cron: '30 12 * * *'
+    # Todo dia às 15h BRT -> 18h UTC
+    - cron: '0 18 * * *'
+  workflow_dispatch:  # Permite execução manual
+
+jobs:
+  pmo-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Determine report mode
+        id: mode
+        run: |
+          # Obtém a hora atual em UTC
+          HOUR_UTC=$(date -u +%H)
+          DAY_WEEK=$(date -u +%u)  # 1=Monday, 7=Sunday
+          
+          # Segunda às 13h UTC = relatório semanal
+          if [[ "$DAY_WEEK" == "1" ]] && [[ "$HOUR_UTC" == "13" ]]; then
+            echo "mode=weekly" >> $GITHUB_OUTPUT
+            echo "Running weekly report"
+          else
+            echo "mode=daily" >> $GITHUB_OUTPUT
+            echo "Running daily report"
+          fi
+
+      - name: Run PMO Report
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          python pmo_report_generator.py --mode ${{ steps.mode.outputs.mode }}
